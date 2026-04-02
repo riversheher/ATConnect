@@ -3,8 +3,12 @@ module github.com/riversheher/atproto-oidc
 go 1.25
 
 require (
+	github.com/bluesky-social/indigo v0.0.0-20260318212431-cbaa83aee9dd
+	gopkg.in/yaml.v3 v3.0.1
+)
+
+require (
 	github.com/beorn7/perks v1.0.1 // indirect
-	github.com/bluesky-social/indigo v0.0.0-20260318212431-cbaa83aee9dd // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/earthboundkid/versioninfo/v2 v2.24.1 // indirect
 	github.com/golang-jwt/jwt/v5 v5.2.2 // indirect

@@ -1,0 +1,25 @@
+# ATProto OIDC Configuration
+# Copy this file to config.yaml and adjust as needed.
+
+server:
+  # Address the server listens on
+  listen_address: ":8080"
+
+log:
+  # Log level: debug, info, warn, error
+  level: "info"
+
+store:
+  # Storage backend: memory, sqlite (future), postgres (future)
+  backend: "memory"
+
+oidc:
+  # The public-facing URL of this OIDC provider
+  issuer_url: "http://localhost:8080"
+  # Enable OIDC provider endpoints (future)
+  enabled: false
+
+oauth:
+  # OAuth scopes to request from ATProto authorization servers
+  scopes:
+    - "atproto"
