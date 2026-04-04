@@ -8,6 +8,8 @@ server:
 log:
   # Log level: debug, info, warn, error
   level: "info"
+  # Log format: text (human-readable, dev), json (machine-parseable, prod)
+  format: "text"
 
 store:
   # Storage backend: memory, sqlite (future), postgres (future)

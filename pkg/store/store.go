@@ -13,11 +13,19 @@ import (
 // specific sub-stores for OIDC signing keys and registered clients.
 //
 // Every concrete adapter (memory, SQLite, Postgres, …) must implement this
-// full interface.
+// full interface, including the lifecycle methods Ping and Close.
 type Store interface {
 	indigooauth.ClientAuthStore
 	KeyStore
 	OIDCClientStore
+
+	// Ping verifies that the store is reachable and operational.
+	// Used by the /readyz health check endpoint.
+	Ping(ctx context.Context) error
+
+	// Close releases any resources held by the store (e.g. database
+	// connections). Called during graceful server shutdown.
+	Close() error
 }
 
 // KeyStore handles persistence of OIDC signing keys (JWKs).

@@ -23,7 +23,8 @@ type ServerConfig struct {
 
 // LogConfig holds logging settings.
 type LogConfig struct {
-	Level string `yaml:"level"`
+	Level  string `yaml:"level"`
+	Format string `yaml:"format"`
 }
 
 // StoreConfig holds data store settings.
@@ -50,7 +51,8 @@ func DefaultConfig() *Config {
 			ListenAddress: ":8080",
 		},
 		Log: LogConfig{
-			Level: "info",
+			Level:  "info",
+			Format: "text",
 		},
 		Store: StoreConfig{
 			Backend: "memory",
@@ -87,6 +89,9 @@ func Load(path string) (*Config, error) {
 	}
 	if v := os.Getenv("ATCONNECT_LOG_LEVEL"); v != "" {
 		cfg.Log.Level = v
+	}
+	if v := os.Getenv("ATCONNECT_LOG_FORMAT"); v != "" {
+		cfg.Log.Format = v
 	}
 	if v := os.Getenv("ATCONNECT_STORE_BACKEND"); v != "" {
 		cfg.Store.Backend = v

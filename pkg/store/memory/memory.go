@@ -100,3 +100,15 @@ func (m *MemoryStore) DeleteClient(_ context.Context, clientID string) error {
 	delete(m.clients, clientID)
 	return nil
 }
+
+// --- Lifecycle implementation ---
+
+// Ping always returns nil — the in-memory store is always available.
+func (m *MemoryStore) Ping(_ context.Context) error {
+	return nil
+}
+
+// Close is a no-op for the in-memory store. There are no resources to release.
+func (m *MemoryStore) Close() error {
+	return nil
+}

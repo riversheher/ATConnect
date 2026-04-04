@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"log"
 	"log/slog"
-	"os"
 
 	"github.com/riversheher/atconnect/internal/config"
 	"github.com/riversheher/atconnect/internal/oauth"
+	"github.com/riversheher/atconnect/internal/observability"
 	"github.com/riversheher/atconnect/internal/server"
 	"github.com/riversheher/atconnect/pkg/store/memory"
 )
@@ -24,32 +24,24 @@ func main() {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
-	// Set up structured logging
-	var logLevel slog.Level
-	switch cfg.Log.Level {
-	case "debug":
-		logLevel = slog.LevelDebug
-	case "warn":
-		logLevel = slog.LevelWarn
-	case "error":
-		logLevel = slog.LevelError
-	default:
-		logLevel = slog.LevelInfo
-	}
-	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: logLevel})))
+	// Initialise structured logging (replaces the duplicated setup code).
+	observability.InitLogger(cfg.Log)
 
-	// Create store (memory for Phase 1; future: sqlite, postgres)
+	// Register Prometheus metrics.
+	metrics := observability.NewMetrics()
+
+	// Create store (memory for now; future: sqlite, postgres).
 	store := memory.New()
 
-	// Create OAuth client with callback URL derived from server config
+	// Create OAuth client with callback URL derived from server config.
 	callbackURL := fmt.Sprintf("http://localhost%s/callback", cfg.Server.ListenAddress)
 	oauthClient := oauth.NewClient(callbackURL, cfg.OAuth.Scopes, store)
 
-	// Create and configure server
-	srv := server.New(cfg)
+	// Create and configure server.
+	srv := server.New(cfg, store, metrics)
 	srv.RegisterRoutes(oauthClient)
 
-	// Run server with graceful shutdown
+	// Run server with graceful shutdown.
 	slog.Info("atconnect server starting",
 		"listen_address", cfg.Server.ListenAddress,
 		"store_backend", cfg.Store.Backend,
