@@ -1,4 +1,4 @@
-# ATProto OIDC Configuration
+# ATConnect Configuration
 # Copy this file to config.yaml and adjust as needed.
 
 server:

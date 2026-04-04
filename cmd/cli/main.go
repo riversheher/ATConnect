@@ -11,9 +11,9 @@ import (
 	"os/exec"
 	"runtime"
 
-	"github.com/riversheher/atproto-oidc/internal/config"
-	"github.com/riversheher/atproto-oidc/internal/oauth"
-	"github.com/riversheher/atproto-oidc/internal/store/memory"
+	"github.com/riversheher/atconnect/internal/config"
+	"github.com/riversheher/atconnect/internal/oauth"
+	"github.com/riversheher/atconnect/pkg/store/memory"
 )
 
 func openBrowser(rawURL string) error {

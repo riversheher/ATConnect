@@ -5,7 +5,7 @@ import (
 
 	indigooauth "github.com/bluesky-social/indigo/atproto/auth/oauth"
 
-	"github.com/riversheher/atproto-oidc/internal/models"
+	"github.com/riversheher/atconnect/pkg/models"
 )
 
 // Store is the top-level storage interface. It embeds indigo's ClientAuthStore

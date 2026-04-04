@@ -8,10 +8,10 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/riversheher/atproto-oidc/internal/config"
-	"github.com/riversheher/atproto-oidc/internal/oauth"
-	"github.com/riversheher/atproto-oidc/internal/server"
-	"github.com/riversheher/atproto-oidc/internal/store/memory"
+	"github.com/riversheher/atconnect/internal/config"
+	"github.com/riversheher/atconnect/internal/oauth"
+	"github.com/riversheher/atconnect/internal/server"
+	"github.com/riversheher/atconnect/pkg/store/memory"
 )
 
 func main() {
@@ -50,7 +50,7 @@ func main() {
 	srv.RegisterRoutes(oauthClient)
 
 	// Run server with graceful shutdown
-	slog.Info("atproto-oidc server starting",
+	slog.Info("atconnect server starting",
 		"listen_address", cfg.Server.ListenAddress,
 		"store_backend", cfg.Store.Backend,
 	)

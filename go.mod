@@ -1,4 +1,4 @@
-module github.com/riversheher/atproto-oidc
+module github.com/riversheher/atconnect
 
 go 1.25
 

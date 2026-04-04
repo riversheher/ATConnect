@@ -82,16 +82,16 @@ func Load(path string) (*Config, error) {
 	}
 
 	// Environment variable overrides take highest precedence.
-	if v := os.Getenv("ATPROTO_OIDC_LISTEN_ADDRESS"); v != "" {
+	if v := os.Getenv("ATCONNECT_LISTEN_ADDRESS"); v != "" {
 		cfg.Server.ListenAddress = v
 	}
-	if v := os.Getenv("ATPROTO_OIDC_LOG_LEVEL"); v != "" {
+	if v := os.Getenv("ATCONNECT_LOG_LEVEL"); v != "" {
 		cfg.Log.Level = v
 	}
-	if v := os.Getenv("ATPROTO_OIDC_STORE_BACKEND"); v != "" {
+	if v := os.Getenv("ATCONNECT_STORE_BACKEND"); v != "" {
 		cfg.Store.Backend = v
 	}
-	if v := os.Getenv("ATPROTO_OIDC_ISSUER_URL"); v != "" {
+	if v := os.Getenv("ATCONNECT_ISSUER_URL"); v != "" {
 		cfg.OIDC.IssuerURL = v
 	}
 

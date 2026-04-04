@@ -9,7 +9,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/riversheher/atproto-oidc/internal/config"
+	"github.com/riversheher/atconnect/internal/config"
 )
 
 // Server is the main HTTP server for the OIDC bridge.

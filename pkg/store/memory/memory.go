@@ -7,8 +7,8 @@ import (
 
 	indigooauth "github.com/bluesky-social/indigo/atproto/auth/oauth"
 
-	"github.com/riversheher/atproto-oidc/internal/models"
-	"github.com/riversheher/atproto-oidc/internal/store"
+	"github.com/riversheher/atconnect/pkg/models"
+	"github.com/riversheher/atconnect/pkg/store"
 )
 
 // Compile-time check that MemoryStore implements store.Store.

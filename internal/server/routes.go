@@ -4,7 +4,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/riversheher/atproto-oidc/internal/oauth"
+	"github.com/riversheher/atconnect/internal/oauth"
 )
 
 // RegisterRoutes sets up all HTTP routes for the server.
