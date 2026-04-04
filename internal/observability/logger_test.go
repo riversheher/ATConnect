@@ -2,6 +2,7 @@ package observability_test
 
 import (
 	"bytes"
+	"context"
 	"log/slog"
 	"testing"
 
@@ -28,7 +29,7 @@ func TestInitLogger_ParsesLevels(t *testing.T) {
 				Level:  tt.level,
 				Format: "text",
 			})
-			if !logger.Enabled(nil, tt.wantLevel) {
+			if !logger.Enabled(context.TODO(), tt.wantLevel) {
 				t.Errorf("expected level %v to be enabled for config level %q", tt.wantLevel, tt.level)
 			}
 		})
