@@ -81,7 +81,7 @@ internal/       # Application wiring (config, oauth client, HTTP server)
 
 ## What's Next
 
-**Phase 2 — Observability:** Structured request logging, panic recovery middleware, Prometheus metrics (`/metrics`), and health endpoints (`/healthz`, `/readyz`).
+**Phase 2 — Observability:** Structured request logging, panic recovery middleware, Prometheus metrics (`/metrics`), and health endpoints (`/livez`, `/readyz`).
 
 **Phase 3 — SQLite Store:** Persistent session and key storage via SQLite — enabling single-binary production deployments with no external database.
 
