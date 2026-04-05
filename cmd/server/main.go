@@ -11,8 +11,25 @@ import (
 	"github.com/riversheher/atconnect/internal/oauth"
 	"github.com/riversheher/atconnect/internal/observability"
 	"github.com/riversheher/atconnect/internal/server"
+	"github.com/riversheher/atconnect/pkg/store"
 	"github.com/riversheher/atconnect/pkg/store/memory"
+	"github.com/riversheher/atconnect/pkg/store/sqlite"
 )
+
+func newStore(cfg *config.Config) (store.Store, error) {
+	switch cfg.Store.Backend {
+	case "memory":
+		return memory.New(), nil
+	case "sqlite":
+		s, err := sqlite.New(cfg.Store.SQLite.Path)
+		if err != nil {
+			return nil, fmt.Errorf("initializing sqlite store: %w", err)
+		}
+		return s, nil
+	default:
+		return nil, fmt.Errorf("unsupported store backend: %s", cfg.Store.Backend)
+	}
+}
 
 func main() {
 	configPath := flag.String("config", "", "Path to YAML config file")
@@ -30,8 +47,11 @@ func main() {
 	// Register Prometheus metrics.
 	metrics := observability.NewMetrics()
 
-	// Create store (memory for now; future: sqlite, postgres).
-	store := memory.New()
+	// Create store from configured backend.
+	store, err := newStore(cfg)
+	if err != nil {
+		log.Fatalf("Failed to initialize store: %v", err)
+	}
 
 	// Create OAuth client with callback URL derived from server config.
 	callbackURL := fmt.Sprintf("http://localhost%s/callback", cfg.Server.ListenAddress)

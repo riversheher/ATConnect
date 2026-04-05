@@ -29,7 +29,13 @@ type LogConfig struct {
 
 // StoreConfig holds data store settings.
 type StoreConfig struct {
-	Backend string `yaml:"backend"`
+	Backend string            `yaml:"backend"`
+	SQLite  SQLiteStoreConfig `yaml:"sqlite"`
+}
+
+// SQLiteStoreConfig holds SQLite backend settings.
+type SQLiteStoreConfig struct {
+	Path string `yaml:"path"`
 }
 
 // OIDCConfig holds OIDC provider settings.
@@ -56,6 +62,9 @@ func DefaultConfig() *Config {
 		},
 		Store: StoreConfig{
 			Backend: "memory",
+			SQLite: SQLiteStoreConfig{
+				Path: "./data/atconnect.db",
+			},
 		},
 		OIDC: OIDCConfig{
 			IssuerURL: "http://localhost:8080",
@@ -96,6 +105,9 @@ func Load(path string) (*Config, error) {
 	if v := os.Getenv("ATCONNECT_STORE_BACKEND"); v != "" {
 		cfg.Store.Backend = v
 	}
+	if v := os.Getenv("ATCONNECT_STORE_SQLITE_PATH"); v != "" {
+		cfg.Store.SQLite.Path = v
+	}
 	if v := os.Getenv("ATCONNECT_ISSUER_URL"); v != "" {
 		cfg.OIDC.IssuerURL = v
 	}
@@ -112,6 +124,15 @@ func Load(path string) (*Config, error) {
 func (c *Config) Validate() error {
 	if c.Server.ListenAddress == "" {
 		return fmt.Errorf("server.listen_address is required")
+	}
+	switch c.Store.Backend {
+	case "memory", "sqlite", "postgres":
+		// valid
+	default:
+		return fmt.Errorf("store.backend must be one of: memory, sqlite, postgres")
+	}
+	if c.Store.Backend == "sqlite" && c.Store.SQLite.Path == "" {
+		return fmt.Errorf("store.sqlite.path is required when store.backend=sqlite")
 	}
 	if len(c.OAuth.Scopes) == 0 {
 		return fmt.Errorf("oauth.scopes must contain at least one scope")

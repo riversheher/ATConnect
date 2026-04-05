@@ -12,8 +12,11 @@ log:
   format: "text"
 
 store:
-  # Storage backend: memory, sqlite (future), postgres (future)
+  # Storage backend: memory, sqlite, postgres (future)
   backend: "memory"
+  sqlite:
+    # SQLite file path (used when backend=sqlite)
+    path: "./data/atconnect.db"
 
 oidc:
   # The public-facing URL of this OIDC provider
