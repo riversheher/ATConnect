@@ -8,6 +8,7 @@ import (
 
 	"github.com/riversheher/atconnect/internal/oauth"
 	"github.com/riversheher/atconnect/internal/observability"
+	"github.com/riversheher/atconnect/internal/oidc"
 )
 
 // RegisterRoutes sets up all HTTP routes for the server.
@@ -17,9 +18,30 @@ import (
 //   - /livez      — liveness probe (always 200)
 //   - /readyz     — readiness probe (checks store connectivity)
 //   - /metrics    — Prometheus scrape endpoint
-func (s *Server) RegisterRoutes(oauthClient *oauth.Client) {
-	// OAuth callback
-	s.mux.HandleFunc("/callback", handleOAuthCallback(oauthClient))
+//
+// When oidcProvider is non-nil (OIDC enabled), additional routes are registered:
+//   - /.well-known/openid-configuration — OIDC discovery document
+//   - /jwks       — JSON Web Key Set
+//   - /authorize  — OIDC authorization endpoint
+//   - /token      — OIDC token endpoint
+//   - /callback   — OIDC-aware ATProto callback (replaces plain callback)
+func (s *Server) RegisterRoutes(oauthClient *oauth.Client, oidcProvider *oidc.Provider) {
+	// Callback handler: OIDC-aware if provider is enabled, plain otherwise.
+	if oidcProvider != nil {
+		// OIDC endpoints
+		s.mux.HandleFunc("GET /.well-known/openid-configuration", oidcProvider.HandleDiscovery)
+		s.mux.HandleFunc("GET /jwks", oidcProvider.HandleJWKS)
+		s.mux.HandleFunc("GET /authorize", oidcProvider.HandleAuthorize)
+		s.mux.HandleFunc("POST /token", oidcProvider.HandleToken)
+
+		// OIDC-aware callback (handles both OIDC flows and plain ATProto auth)
+		s.mux.HandleFunc("/callback", oidcProvider.HandleCallback)
+
+		slog.Info("OIDC provider routes registered")
+	} else {
+		// Plain ATProto callback (no OIDC)
+		s.mux.HandleFunc("/callback", handleOAuthCallback(oauthClient))
+	}
 
 	// Health probes
 	health := observability.NewHealthChecker(s.store)
@@ -31,6 +53,7 @@ func (s *Server) RegisterRoutes(oauthClient *oauth.Client) {
 }
 
 // handleOAuthCallback processes the ATProto OAuth redirect callback.
+// Used when OIDC is not enabled.
 func handleOAuthCallback(oauthClient *oauth.Client) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		sess, err := oauthClient.HandleCallback(r.Context(), r.URL.Query())

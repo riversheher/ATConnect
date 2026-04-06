@@ -40,8 +40,17 @@ type SQLiteStoreConfig struct {
 
 // OIDCConfig holds OIDC provider settings.
 type OIDCConfig struct {
-	IssuerURL string `yaml:"issuer_url"`
-	Enabled   bool   `yaml:"enabled"`
+	IssuerURL string             `yaml:"issuer_url"`
+	Enabled   bool               `yaml:"enabled"`
+	Clients   []OIDCClientConfig `yaml:"clients"`
+}
+
+// OIDCClientConfig holds configuration for a pre-registered OIDC relying party.
+type OIDCClientConfig struct {
+	ClientID     string   `yaml:"client_id"`
+	ClientSecret string   `yaml:"client_secret"`
+	RedirectURIs []string `yaml:"redirect_uris"`
+	Name         string   `yaml:"name"`
 }
 
 // OAuthConfig holds ATProto OAuth client settings.

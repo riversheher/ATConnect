@@ -22,8 +22,16 @@ store:
 oidc:
   # The public-facing URL of this OIDC provider
   issuer_url: "http://localhost:8080"
-  # Enable OIDC provider endpoints (future)
+  # Enable OIDC provider endpoints
   enabled: false
+  # Pre-registered OIDC relying party clients.
+  # Each client must have a unique client_id and at least one redirect_uri.
+  # clients:
+  #   - client_id: "my-app"
+  #     client_secret: "change-me-to-a-secure-secret"
+  #     redirect_uris:
+  #       - "https://example.com/callback"
+  #     name: "My Application"
 
 oauth:
   # OAuth scopes to request from ATProto authorization servers

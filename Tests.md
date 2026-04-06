@@ -20,6 +20,9 @@ go test ./internal/observability/ -v
 # Run only SQLite store tests
 go test ./pkg/store/sqlite/ -v
 
+# Run only OIDC provider tests
+go test ./internal/oidc/ -v
+
 # Run a specific test by name
 go test ./internal/middleware/ -v -run TestRecovery_CatchesPanic
 ```
@@ -34,10 +37,12 @@ go test ./internal/middleware/ -v -run TestRecovery_CatchesPanic
 | `slog` output format verification (JSON vs text structure) | `InitLogger` writes to `os.Stderr`; testing output format requires either dependency injection of `io.Writer` or stderr capture. Low value for the complexity. | If format bugs surface, refactor `InitLogger` to accept `io.Writer`. |
 | Concurrent middleware safety | Middleware is stateless (no shared mutable state). The `responseWriter` wrapper is per-request. Race conditions are unlikely. | Add `-race` flag to CI pipeline (Phase 5, step 5.6). |
 | `generateID()` randomness quality | Uses `crypto/rand`; testing randomness properties is not meaningful in a unit test. | N/A — trust stdlib. |
-| CORS middleware | Not yet implemented (deferred to Phase 4). | Phase 4, step 4.7. |
+| CORS middleware | Not yet implemented (deferred to Phase 5). | Phase 5, step 5.x. |
 | Concurrent SQLite access | `MaxOpenConns(1)` serialises all DB access. No concurrent read/write races possible with current config. | When connection pooling is relaxed, add `-race` tests with parallel goroutines. |
 | Schema migration / upgrade paths | No migration framework exists yet (SC-4). | Phase 5, when schema versioning is implemented. |
 | Expired auth request garbage collection | No cleanup routine exists yet (SC-5). | When a GC routine is added. |
+| JWT signature verification in OIDC tests | The indigo library registers a custom `signingMethodAtproto` for `"ES256"` that overrides `jwt.SigningMethodES256`, making `jwt.Parse` with `*ecdsa.PublicKey` fail during `Verify()`. OIDC tests decode JWT claims via base64 instead. Real RPs verify signatures externally using the JWKS endpoint. | If indigo exposes a verification helper, or if a test-only signing method reset is feasible. |
+| OIDC full auth flow (authorize → ATProto → callback → token) | Requires a live ATProto PDS or a mock of indigo's `ClientApp`. The ATProto OAuth handshake (DPoP, PAR) is complex to stub. | When an ATProto mock/test server is available, or as a manual integration test. |
 
 ---
 
@@ -243,6 +248,210 @@ sqlite3 ./data/test.db "PRAGMA journal_mode;"
 
 ---
 
+## Manual Testing — OIDC Integration
+
+These tests verify the OIDC provider endpoints work as part of a running server. They require a config file with at least one registered OIDC client.
+
+### Prerequisites
+
+Create a config file (or use `config.example.yaml`) with an OIDC client:
+
+```yaml
+oidc:
+  issuer_url: "http://localhost:8080"
+  clients:
+    - client_id: "manual-test"
+      client_secret: "manual-test-secret"
+      redirect_uris:
+        - "http://localhost:9090/callback"
+      name: "Manual Test RP"
+```
+
+Start the server:
+
+```bash
+go run ./cmd/server -config config.example.yaml
+```
+
+### 14. OIDC Discovery Document
+
+```bash
+curl -s localhost:8080/.well-known/openid-configuration | jq .
+```
+
+**Expected:**
+```json
+{
+  "issuer": "http://localhost:8080",
+  "authorization_endpoint": "http://localhost:8080/authorize",
+  "token_endpoint": "http://localhost:8080/token",
+  "jwks_uri": "http://localhost:8080/jwks",
+  "scopes_supported": ["openid"],
+  "response_types_supported": ["code"],
+  "id_token_signing_alg_values_supported": ["ES256"],
+  "subject_types_supported": ["public"],
+  "claims_supported": ["iss","sub","aud","exp","iat","nonce","preferred_username","atproto_pds"]
+}
+```
+
+**Verify:** All endpoints use the correct issuer URL prefix. `ES256` is listed as the signing algorithm.
+
+### 15. JWKS Endpoint
+
+```bash
+curl -s localhost:8080/jwks | jq .
+```
+
+**Expected:**
+```json
+{
+  "keys": [
+    {
+      "kty": "EC",
+      "crv": "P-256",
+      "x": "<base64url>",
+      "y": "<base64url>",
+      "kid": "atconnect-signing-key-1",
+      "use": "sig",
+      "alg": "ES256"
+    }
+  ]
+}
+```
+
+**Verify:** One key returned. `kid` matches the default key ID. `x` and `y` are present. Calling the endpoint again returns the same key (key persistence).
+
+### 16. Authorize — Missing Parameters
+
+```bash
+# No parameters at all
+curl -si localhost:8080/authorize
+```
+
+**Expected:** Status `400` with JSON `{"error": "invalid_request", "error_description": "client_id is required"}`.
+
+```bash
+# Unknown client_id
+curl -si "localhost:8080/authorize?client_id=nonexistent"
+```
+
+**Expected:** Status `400` with `"unknown client_id"`.
+
+```bash
+# Valid client but unregistered redirect_uri
+curl -si "localhost:8080/authorize?client_id=manual-test&redirect_uri=https://evil.example.com/callback"
+```
+
+**Expected:** Status `400` with `"redirect_uri is not registered for this client"`.
+
+### 17. Authorize — Login Form
+
+```bash
+curl -s "localhost:8080/authorize?client_id=manual-test&redirect_uri=http://localhost:9090/callback&response_type=code&scope=openid"
+```
+
+**Expected:** HTML page with a form containing a `login_hint` input field and hidden fields preserving the authorization parameters. This is the page a user would see in a browser.
+
+### 18. Authorize — Full Flow (Browser)
+
+Open in a browser:
+
+```
+http://localhost:8080/authorize?client_id=manual-test&redirect_uri=http://localhost:9090/callback&response_type=code&scope=openid&state=test-state&nonce=test-nonce&login_hint=<your-handle>.bsky.social
+```
+
+**Expected:**
+1. Browser redirects to the ATProto PDS authorization page.
+2. After authorizing, the PDS redirects back to the server's `/callback`.
+3. The server issues an authorization code and redirects to `http://localhost:9090/callback?code=<hex>&state=test-state`.
+4. (The redirect will fail since no RP is running on port 9090 — inspect the browser URL bar for the `code` and `state` parameters.)
+
+### 19. Token Exchange (with code from step 18)
+
+Using the `code` from the browser URL bar:
+
+```bash
+curl -s -X POST localhost:8080/token \
+  -d "grant_type=authorization_code" \
+  -d "code=<paste-code-here>" \
+  -d "redirect_uri=http://localhost:9090/callback" \
+  -d "client_id=manual-test" \
+  -d "client_secret=manual-test-secret" | jq .
+```
+
+**Expected:**
+```json
+{
+  "access_token": "<64-char hex>",
+  "token_type": "Bearer",
+  "expires_in": 3600,
+  "id_token": "<JWT>"
+}
+```
+
+**Verify:**
+- `token_type` is `"Bearer"`.
+- `expires_in` is `3600` (1 hour).
+- `id_token` is a three-part JWT (split by `.`).
+
+### 20. Decode the ID Token
+
+Decode the JWT payload (middle segment):
+
+```bash
+echo "<id_token>" | cut -d. -f2 | base64 -d 2>/dev/null | jq .
+```
+
+**Expected claims:**
+```json
+{
+  "iss": "http://localhost:8080",
+  "sub": "did:plc:<your-did>",
+  "aud": "manual-test",
+  "exp": <unix-timestamp>,
+  "iat": <unix-timestamp>,
+  "nonce": "test-nonce",
+  "preferred_username": "<your-handle>.bsky.social",
+  "atproto_pds": "https://<your-pds-host>"
+}
+```
+
+**Verify:**
+- `iss` matches the server's issuer URL.
+- `sub` is your ATProto DID.
+- `aud` matches the `client_id` used in the authorization request.
+- `nonce` matches the nonce from step 18.
+- `preferred_username` is your handle.
+- `exp` is approximately 1 hour after `iat`.
+
+### 21. Token Exchange — Code Reuse Rejected
+
+Re-use the same code from step 19:
+
+```bash
+curl -s -X POST localhost:8080/token \
+  -d "grant_type=authorization_code" \
+  -d "code=<same-code-again>" \
+  -d "client_id=manual-test" \
+  -d "client_secret=manual-test-secret" | jq .
+```
+
+**Expected:** `{"error": "invalid_grant", "error_description": "unknown or already-used authorization code"}`.
+
+### 22. Token Exchange — Wrong Secret
+
+```bash
+curl -s -X POST localhost:8080/token \
+  -d "grant_type=authorization_code" \
+  -d "code=any-code" \
+  -d "client_id=manual-test" \
+  -d "client_secret=wrong" | jq .
+```
+
+**Expected:** `{"error": "invalid_client", "error_description": "invalid client credentials"}` (or `"invalid_grant"` if the code is also invalid — the code is validated first).
+
+---
+
 
 ## Running in CI
 
@@ -357,5 +566,51 @@ Each test creates a fresh temporary database via `newTestStore(t)`. The database
 | # | Test Name | What It Verifies | Expected Result |
 |---|-----------|-----------------|----------------|
 | 46 | `TestCrossDomain_IndependentTables` | Deleting data in one domain does not affect data in other domains. | Auth request, key, and client survive session deletion. |
+
+---
+
+## OIDC Provider — `internal/oidc/oidc_test.go`
+
+Each test creates a fresh `Provider` with an in-memory store, a real EC P-256 signing key (via `keys.NewManager`), and a pre-registered test client. The ATProto OAuth client is nil — tests that need token exchange insert `codeGrant` entries directly, bypassing the ATProto leg.
+
+**Note:** JWT claims are verified by base64-decoding the payload rather than using `jwt.Parse` with signature verification. This is because the indigo library registers a custom `signingMethodAtproto` for "ES256" that replaces the standard `jwt.SigningMethodECDSA`. The custom method's `Verify()` expects indigo's key wrapper, not a bare `*ecdsa.PublicKey`. See "What Is Not Tested" for details.
+
+### Discovery & JWKS
+
+| # | Test Name | What It Verifies | Expected Result |
+|---|-----------|-----------------|----------------|
+| 47 | `TestDiscovery_ReturnsCorrectMetadata` | `/.well-known/openid-configuration` returns valid JSON with correct issuer, endpoints, signing algorithms. | Status 200, `issuer` matches, `authorization_endpoint` / `token_endpoint` / `jwks_uri` populated, `ES256` in signing algs. |
+| 48 | `TestJWKS_ReturnsValidJWKSet` | `/jwks` returns a JWK Set with one EC P-256 key containing valid base64url-encoded 32-byte coordinates. | Status 200, one key with `kty=EC`, `crv=P-256`, `alg=ES256`, `use=sig`, `kid` matches key manager, `x` and `y` decode to 32 bytes. |
+
+### Authorize Endpoint Validation
+
+| # | Test Name | What It Verifies | Expected Result |
+|---|-----------|-----------------|----------------|
+| 49 | `TestAuthorize_MissingClientID` | `/authorize` with no `client_id` returns an error (not a redirect, since the RP is unknown). | Status 400, `error=invalid_request`. |
+| 50 | `TestAuthorize_UnknownClientID` | `/authorize` with a non-registered `client_id` returns 400. | Status 400. |
+| 51 | `TestAuthorize_UnregisteredRedirectURI` | `/authorize` with a `redirect_uri` not registered for the client returns 400 (must not redirect to untrusted URIs). | Status 400, `error=invalid_request`. |
+| 52 | `TestAuthorize_UnsupportedResponseType` | `/authorize` with `response_type=token` (instead of `code`) redirects back to the RP with an error. | Status 302, redirect URL contains `error=unsupported_response_type`. |
+| 53 | `TestAuthorize_MissingLoginHint_ShowsForm` | When all params are valid but `login_hint` is omitted, the provider renders an HTML login form. | Status 200, `Content-Type: text/html`, body contains `login_hint` input. |
+
+### Token Endpoint
+
+| # | Test Name | What It Verifies | Expected Result |
+|---|-----------|-----------------|----------------|
+| 54 | `TestToken_ValidExchange` | Full happy-path code exchange: inserts a `codeGrant`, calls `POST /token`, verifies the returned JWT ID token contains correct claims (iss, sub, aud, nonce, preferred_username, atproto_pds). | Status 200, `token_type=Bearer`, `id_token` decodes to JWT with expected claims, `access_token` non-empty. |
+| 55 | `TestToken_CodeIsSingleUse` | Authorization codes are deleted after first use. A second exchange with the same code fails. | First call → 200. Second call → 400, `error=invalid_grant`. |
+| 56 | `TestToken_ExpiredCode` | An expired authorization code is rejected. | Status 400, `error=invalid_grant`. |
+| 57 | `TestToken_WrongClientSecret` | Token exchange with an incorrect `client_secret` is rejected. | Status 401, `error=invalid_client`. |
+
+### Utility Functions
+
+| # | Test Name | What It Verifies | Expected Result |
+|---|-----------|-----------------|----------------|
+| 58 | `TestGenerateRandomHex_Length` | `generateRandomHex()` produces a 64-character hex string (32 random bytes). | Length 64. |
+| 59 | `TestGenerateRandomHex_Unique` | Two consecutive calls to `generateRandomHex()` produce different values. | Values differ. |
+| 60 | `TestExtractStateFromURL` | Correctly extracts the `state` query parameter from a URL. | Returns `"abc123"`. |
+| 61 | `TestExtractStateFromURL_Missing` | Returns an error when the URL has no `state` parameter. | Error returned. |
+| 62 | `TestBuildRedirectURL` | Constructs a redirect URL with `code` and `state` query parameters. | Parsed URL contains correct `code` and `state` values. |
+| 63 | `TestContainsWord` | Space-delimited word matching: matches whole words, rejects substrings, handles edge cases. | `"openid profile"→true`, `"openid-connect"→false`, `""→false`. |
+| 64 | `TestPadToN` | Left-pads short byte slices with zeroes to the target length; returns as-is when already correct. | `[0x01,0x02]` padded to 4 → `[0,0,1,2]`; `[AA,BB,CC,DD]` → identity. |
 
 ---
