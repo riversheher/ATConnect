@@ -1,3 +1,11 @@
+# DISCLAIMER
+
+This project is currently a work in progess and is not well tested. Use at your own risk.
+
+## AI Usage
+
+Github Copilot was used to aid in the development of test cases, and the project scaffolding/boilerplate.
+
 # ATConnect
 
 An OIDC Identity Provider that extends ATProto's OAuth implementation to standards-compliant OpenID Connect. Users authenticate with their ATProto PDS, and this service issues OIDC ID Tokens containing their DID and handle — making ATProto identities usable with any OIDC-compatible service such as Cloudflare Access, AWS IAM Identity Center, etc.
@@ -6,7 +14,7 @@ An OIDC Identity Provider that extends ATProto's OAuth implementation to standar
 
 ## Current State
 
-**This project is in early development and is not yet functional as an OIDC provider.**
+**This project is in early development and is not yet fully functional.**
 
 What currently works:
 - **CLI** — completes a real ATProto OAuth flow end-to-end: opens a browser, handles the callback, and prints the authenticated DID and session info.
@@ -17,9 +25,8 @@ What currently works:
   - **SQLite** — file-based persistent storage via `modernc.org/sqlite` (pure Go, no cgo). Supports sessions, auth requests, OIDC keys, and client registrations.
 
 Current limitations:
-- **No OIDC endpoints.** `/authorize`, `/token`, `/userinfo`, `/.well-known/openid-configuration`, and `/jwks` do not exist yet. The server cannot act as an OIDC provider.
-- **No relying party support.** There is no client registration, no token issuance, and no way to connect a service like Cloudflare Access.
 - **No schema migrations.** SQLite tables are created with `CREATE TABLE IF NOT EXISTS`. There is no versioned migration strategy yet.
+- **Not production ready.** This is currently not production ready.  No integration with cloud based storage or observability is currently implemented.
 
 ---
 
